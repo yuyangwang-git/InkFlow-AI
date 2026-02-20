@@ -4,6 +4,7 @@
 // @version      1.0.0
 // @license      GPL-3.0-or-later
 // @description  双击复制网页公式，支持 Word 公式(MathML)/LaTeX 切换，适配 ChatGPT、Gemini、DeepSeek 等站点。
+// @description:en  Double-click to copy web formulas, with Word MathML/LaTeX mode switching; supports ChatGPT, Gemini, DeepSeek, Wikipedia, Zhihu, and StackExchange.
 // @author       Yuyang Wang
 // @match        *://*.chatgpt.com/*
 // @match        *://*.gemini.google.com/*
