@@ -24,7 +24,7 @@
 
   window.__latexCopyMode = 'mathml';
 
-  // 1. 样式表优化
+  // 1) 界面样式：悬停预览、复制成功提示、模式切换按钮
   const styleSheet = document.createElement("style");
   styleSheet.innerText = `
     .latex-tooltip {
@@ -39,10 +39,10 @@
       transition: opacity 0.2s;
       pointer-events: none;
     }
-    /* 优化后的成功提示：右下角，轻量级 */
+    /* 成功提示：右下角轻量浮层 */
     .latex-copy-success {
       position: fixed;
-      bottom: 70px; /* 位于切换按钮上方 */
+      bottom: 70px; /* 显示在模式切换按钮上方 */
       right: 25px;
       background-color: #323232;
       color: #fff;
@@ -78,7 +78,7 @@
       box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
   `;
-  // UI elements are appended after DOM is ready (safer across different @run-at timings)
+  // UI 元素在 DOM 可用后再挂载，兼容不同注入时机
   const tooltip = document.createElement('div');
   tooltip.classList.add('latex-tooltip');
 
@@ -115,7 +115,7 @@
     }).catch(err => console.error('复制失败:', err));
   }
 
-  // 2. 逻辑优化：右下角淡入淡出，且防止重叠
+  // 2) 复制成功提示：淡入淡出，并避免多条提示重叠
   function showCopySuccessTooltip(mode) {
     const oldToast = document.querySelector('.latex-copy-success');
     if (oldToast) oldToast.remove();
@@ -125,17 +125,17 @@
     copyTooltip.innerText = mode === 'latex' ? "✅ 已复制 LaTeX" : "✅ 已复制 Word 公式";
     document.body.appendChild(copyTooltip);
 
-    // 触发动画
+    // 触发进入动画
     setTimeout(() => copyTooltip.classList.add('show'), 10);
 
-    // 1.5秒后消失
+    // 1.5 秒后退出并移除
     setTimeout(() => {
       copyTooltip.classList.remove('show');
       setTimeout(() => { if (copyTooltip.parentNode) copyTooltip.remove(); }, 300);
     }, 1500);
   }
 
-  // --- 原有核心逻辑保持不变 ---
+  // 3) 公式提取与目标站点适配
   function getKaTeXLatex(el) {
     const dataMath = el.getAttribute('data-math') || el.closest?.('[data-math]')?.getAttribute('data-math');
     if (dataMath) return dataMath;
@@ -166,19 +166,19 @@
 
   function extractExistingMathML(el) {
     if (!el) return null;
-    // 1) KaTeX embeds MathML in .katex-mathml
+    // 1) KaTeX 内嵌 MathML（.katex-mathml）
     let math = el.querySelector?.('span.katex-mathml > math');
     if (math) return math.outerHTML;
 
-    // 2) Wikipedia/MathML <math> directly
+    // 2) 页面直接提供的 <math>
     math = el.querySelector?.('math');
     if (math) return math.outerHTML;
 
-    // 3) MathJax v3 assistive MathML
+    // 3) MathJax v3 辅助 MathML
     math = el.querySelector?.('mjx-assistive-mml math');
     if (math) return math.outerHTML;
 
-    // 4) MathJax v2 assistive MathML
+    // 4) MathJax v2 辅助 MathML
     math = el.querySelector?.('span.MJX_Assistive_MathML math');
     if (math) return math.outerHTML;
 
@@ -239,8 +239,8 @@
     return isMathOnlyWhitespace(node.textContent);
   }
 
-  // KaTeX/HTML may emit named entities (e.g. &nbsp;) that are invalid in XML MathML.
-  // Convert them to numeric references so DOMParser(application/xml) and Word can parse them.
+  // KaTeX/HTML 里的命名实体（如 &nbsp;）在 XML MathML 中可能非法；
+  // 统一转为数字实体，确保 DOMParser(application/xml) 与 Word 可识别。
   function makeMathMLXmlSafe(mml) {
     if (!mml || typeof mml !== 'string') return mml;
     return mml
@@ -252,9 +252,9 @@
       .replace(/&NoBreak;/g, '&#8288;');
   }
 
-  // Normalize equation tags for Word:
-  // 1) turn <mtext>(20)</mtext> into math tokens and render tag as #(20) for Word.
-  // 2) flatten KaTeX tag layout table to remove non-removable spacer cells in Word.
+  // Word 兼容归一化：
+  // 1) 将 <mtext>(20)</mtext> 转成数学节点，并规范为 #(20)
+  // 2) 将 KaTeX 的标签布局表拍平，避免 Word 中出现难以删除的留白
   function normalizeMathMLForWord(mml) {
     const xmlSafeMml = makeMathMLXmlSafe(mml);
     if (!xmlSafeMml || (!xmlSafeMml.includes('<mtext>') && !xmlSafeMml.includes('<mtable'))) return xmlSafeMml;
@@ -295,9 +295,9 @@
         }
       });
 
-      // KaTeX display tags often use:
+      // KaTeX 显示公式常见标签布局：
       // <mtable width="100%"><mtr><mtd width="50%"/><mtd>eq</mtd><mtd width="50%"/><mtd>tag</mtd></mtr></mtable>
-      // Flatten to inline mrow to avoid huge invisible gaps in Word after deleting the tag.
+      // 改为内联 mrow，减少 Word 删除标签后的残留空白。
       const tables = Array.from(doc.getElementsByTagName('mtable'));
       tables.forEach(table => {
         if (table.getAttribute('width') !== '100%') return;
@@ -350,7 +350,7 @@
     return normalizeAndCacheMathML(el, rawMathML);
   }
 
-  // Trusted Types-safe conversion: use KaTeX renderToString and slice out <math> directly.
+  // Trusted Types 友好：用 KaTeX renderToString 生成后直接提取 <math>
   function getReadyKaTeX() {
     let ktx = null;
     if (window.katex && typeof window.katex === 'object') ktx = window.katex;
@@ -393,7 +393,7 @@
   }
 
   function bindOne(element, latexString) {
-    // Bind metadata only; event listeners are delegated at document level (lighter).
+    // 仅绑定元数据；交互监听采用事件委托，减少单节点监听器开销。
     if (element.dataset.latexCopyBound === '1') return;
     element.dataset.latexCopyBound = '1';
     if (!latexString) return;
@@ -401,7 +401,7 @@
     resolveMathMLFromElement(element);
   }
 
-  // --- Delegated interactions (one-time listeners) ---
+  // 4) 事件委托交互（一次注册，全局生效）
   let currentHoverEl = null;
 
   function hideHoverTooltip() {
@@ -421,14 +421,14 @@
     let left = rect.left;
     let top = rect.top - 30;
 
-    // Basic viewport clamping to avoid going off-screen.
+    // 视口边界约束，避免提示框出屏
     const padding = 6;
-    // Temporarily show to measure width/height
+    // 临时放置后测量尺寸
     tooltip.style.opacity = '0';
     tooltip.style.left = '0px';
     tooltip.style.top = '0px';
 
-    // Force layout to get size
+    // 触发布局获取宽高
     const ttRect = tooltip.getBoundingClientRect();
     const ttW = ttRect.width || 0;
     const ttH = ttRect.height || 0;
@@ -454,7 +454,7 @@
     const el = e.target?.closest?.('[data-latex-copy-bound="1"]');
     if (!el || el !== currentHoverEl) return;
     const to = e.relatedTarget;
-    if (to && el.contains(to)) return; // still inside
+    if (to && el.contains(to)) return; // 鼠标仍在公式内部
     currentHoverEl = null;
     hideHoverTooltip();
   }, true);
@@ -481,7 +481,7 @@
         copyToClip(mml, 'mathml');
       } catch (err) {
         console.warn('[latex-copy] MathML conversion failed, fallback to LaTeX:', err);
-        // Fallback: copy LaTeX if MathML conversion is unavailable (e.g., blocked by CSP).
+        // 回退：MathML 不可用时复制 LaTeX
         copyToClip(latexString, 'latex');
       }
     }
@@ -495,13 +495,13 @@
     const target = currentTarget;
     if (!target) return;
 
-    // If the root itself is a formula node, bind it too.
+    // root 本身若是公式节点，也需要绑定
     if (root && root.nodeType === 1 && root.matches?.(target.elementSelector)) {
       const latexString = target.getLatex(root);
       if (latexString) bindOne(root, latexString);
     }
 
-    // Scan only within the given subtree (incremental), not the whole document every time.
+    // 仅扫描当前子树，避免每次全量扫描文档
     if (root && typeof root.querySelectorAll === 'function') {
       root.querySelectorAll(target.elementSelector).forEach(element => {
         const latexString = target.getLatex(element);
@@ -510,7 +510,7 @@
     }
   }
 
-  // rAF-batched incremental scanning for dynamic/SPA pages (ChatGPT/Gemini etc.)
+  // rAF 批处理增量扫描，适配动态/SPA 页面
   const pendingRoots = new Set();
   let scheduled = false;
   let lastHref = window.location.href;
@@ -525,7 +525,7 @@
     requestAnimationFrame(() => {
       scheduled = false;
 
-      // If SPA navigation changed URL, force a one-time full scan.
+      // SPA 路由变化时，触发一次全量扫描
       if (window.location.href !== lastHref) {
         lastHref = window.location.href;
         currentTarget = getTarget(lastHref);
