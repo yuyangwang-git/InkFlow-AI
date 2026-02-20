@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         复制AI网页公式（Word/LaTeX）
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/yuyangwang-git/InkFlow-AI
 // @version      1.0.0
-// @license      GPLv3
+// @license      GPL-3.0-or-later
 // @description  双击复制网页公式，支持 Word 公式(MathML)/LaTeX 切换，适配 ChatGPT、Gemini、DeepSeek 等站点。
 // @author       Yuyang Wang
 // @match        *://*.chatgpt.com/*
@@ -12,7 +12,10 @@
 // @match        *://*.zhihu.com/*
 // @match        *://*.stackexchange.com/*
 // @require      https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js
-// @grant        none
+// @supportURL   https://github.com/yuyangwang-git/InkFlow-AI/issues
+// @homepageURL  https://github.com/yuyangwang-git/InkFlow-AI
+// @updateURL    https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/main/main.user.js
+// @downloadURL  https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/main/main.user.js
 // ==/UserScript==
 
 (function () {
@@ -153,7 +156,7 @@
     'zhihu.com': { elementSelector: 'span.ztext-math', getLatex: el => el.getAttribute('data-tex') },
     'stackexchange.com': { elementSelector: 'span.math-container', getLatex: el => el.querySelector('script')?.textContent }
   };
-  ['chatgpt.com', 'gemini.google.com', 'moonshot.cn', 'deepseek.com'].forEach(domain => { targets[domain] = sharedKaTeXTarget; });
+  ['chatgpt.com', 'gemini.google.com', 'deepseek.com'].forEach(domain => { targets[domain] = sharedKaTeXTarget; });
   const targetEntries = Object.entries(targets);
 
   function getTarget(url) {
