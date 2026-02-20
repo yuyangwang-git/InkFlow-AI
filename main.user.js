@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         复制AI网页公式（Word/LaTeX）
 // @namespace    https://github.com/yuyangwang-git/InkFlow-AI
-// @version      1.0.0
+// @version      1.0.1
 // @license      GPL-3.0-or-later
 // @description  双击复制网页公式，支持 Word 公式(MathML)/LaTeX 切换，适配 ChatGPT、Gemini、DeepSeek 等站点。
 // @description:en  Double-click to copy web formulas, with Word MathML/LaTeX mode switching; supports ChatGPT, Gemini, DeepSeek, Wikipedia, Zhihu, and StackExchange.
@@ -23,6 +23,7 @@
   'use strict';
 
   window.__latexCopyMode = 'mathml';
+  const FORMULA_SELECTOR = '[data-latex], span.katex';
 
   // 1) 界面样式：悬停预览、复制成功提示、模式切换按钮
   const styleSheet = document.createElement("style");
@@ -186,6 +187,16 @@
   }
 
   const MATHML_NS = 'http://www.w3.org/1998/Math/MathML';
+  const MAX_LATEX_CACHE_SIZE = 512;
+  const latexToMathMLCache = new Map();
+
+  function setLimitedCache(map, key, value, maxSize = MAX_LATEX_CACHE_SIZE) {
+    if (map.has(key)) map.delete(key);
+    map.set(key, value);
+    if (map.size <= maxSize) return;
+    const firstKey = map.keys().next().value;
+    map.delete(firstKey);
+  }
 
   function hasMathMLAncestor(node, localName) {
     let current = node;
@@ -243,6 +254,7 @@
   // 统一转为数字实体，确保 DOMParser(application/xml) 与 Word 可识别。
   function makeMathMLXmlSafe(mml) {
     if (!mml || typeof mml !== 'string') return mml;
+    if (!mml.includes('&')) return mml;
     return mml
       .replace(/&nbsp;/gi, '&#160;')
       .replace(/&ensp;/gi, '&#8194;')
@@ -257,7 +269,8 @@
   // 2) 将 KaTeX 的标签布局表拍平，避免 Word 中出现难以删除的留白
   function normalizeMathMLForWord(mml) {
     const xmlSafeMml = makeMathMLXmlSafe(mml);
-    if (!xmlSafeMml || (!xmlSafeMml.includes('<mtext>') && !xmlSafeMml.includes('<mtable'))) return xmlSafeMml;
+    if (!xmlSafeMml) return xmlSafeMml;
+    if (!xmlSafeMml.includes('<mtext>') && !xmlSafeMml.includes('<mtable')) return xmlSafeMml;
     try {
       const doc = new DOMParser().parseFromString(xmlSafeMml, 'application/xml');
       if (doc.getElementsByTagName('parsererror').length) return xmlSafeMml;
@@ -339,13 +352,19 @@
   }
 
   function normalizeAndCacheMathML(el, rawMathML) {
+    if (!rawMathML || typeof rawMathML !== 'string') return rawMathML;
     const mml = normalizeMathMLForWord(rawMathML);
-    if (mml && el?.dataset && mml !== el.dataset.mathml) el.dataset.mathml = mml;
+
+    if (mml && el?.dataset) {
+      if (mml !== el.dataset.mathml) el.dataset.mathml = mml;
+      el.dataset.mathmlNormalized = '1';
+    }
     return mml;
   }
 
   function resolveMathMLFromElement(el) {
     if (!el) return null;
+    if (el.dataset?.mathml && el.dataset?.mathmlNormalized === '1') return el.dataset.mathml;
     const rawMathML = el.dataset?.mathml || extractExistingMathML(el);
     return normalizeAndCacheMathML(el, rawMathML);
   }
@@ -387,18 +406,53 @@
     const existing = resolveMathMLFromElement(el);
     if (existing) return existing;
     if (!latexString) throw new Error('No LaTeX to convert');
+    const cached = latexToMathMLCache.get(latexString);
+    if (cached) return normalizeAndCacheMathML(el, cached);
     const mml = convertLatexToMathMLWithKaTeX(latexString);
     if (!mml) throw new Error('KaTeX MathML conversion unavailable');
-    return normalizeAndCacheMathML(el, mml);
+    const normalized = normalizeMathMLForWord(mml);
+    setLimitedCache(latexToMathMLCache, latexString, normalized);
+    return normalizeAndCacheMathML(el, normalized);
   }
 
   function bindOne(element, latexString) {
     // 仅绑定元数据；交互监听采用事件委托，减少单节点监听器开销。
     if (element.dataset.latexCopyBound === '1') return;
     element.dataset.latexCopyBound = '1';
-    if (!latexString) return;
-    element.dataset.latex = latexString;
-    resolveMathMLFromElement(element);
+    if (latexString) element.dataset.latex = latexString;
+
+    // 轻量预热：优先缓存页面已有的 MathML，避免复制时再次深度查询 DOM。
+    if (!element.dataset.mathml) {
+      const rawMathML = extractExistingMathML(element);
+      if (rawMathML) {
+        const needsNormalize = rawMathML.includes('<mtext>') || rawMathML.includes('<mtable') || rawMathML.includes('&');
+        if (!needsNormalize) {
+          element.dataset.mathml = rawMathML;
+          element.dataset.mathmlNormalized = '1';
+        } else {
+          const normalized = normalizeMathMLForWord(rawMathML);
+          if (normalized) {
+            element.dataset.mathml = normalized;
+            element.dataset.mathmlNormalized = '1';
+          } else {
+            element.dataset.mathml = rawMathML;
+          }
+        }
+      }
+    }
+  }
+
+  function ensureLatexFromElement(el) {
+    if (!el) return null;
+    const existing = el.dataset?.latex;
+    if (existing) return existing;
+
+    const target = currentTarget;
+    if (!target) return null;
+
+    const latex = target.getLatex(el);
+    if (latex && el.dataset) el.dataset.latex = latex;
+    return latex || null;
   }
 
   // 4) 事件委托交互（一次注册，全局生效）
@@ -412,7 +466,7 @@
   function showHoverTooltipFor(el) {
     initUI();
     if (!uiInited) return;
-    const latexString = el?.dataset?.latex;
+    const latexString = ensureLatexFromElement(el);
     if (!latexString) return;
 
     tooltip.textContent = latexString;
@@ -470,18 +524,28 @@
     initUI();
     initToggleButton();
 
-    const latexString = el.dataset.latex;
-    if (!latexString) return;
-
     const mode = window.__latexCopyMode || 'mathml';
-    if (mode === 'latex') copyToClip(latexString, 'latex');
-    else {
+    if (mode === 'latex') {
+      const latexString = ensureLatexFromElement(el);
+      if (!latexString) return;
+      copyToClip(latexString, 'latex');
+    } else {
       try {
+        const existingMathML = resolveMathMLFromElement(el);
+        if (existingMathML) {
+          copyToClip(existingMathML, 'mathml');
+          try { window.getSelection()?.removeAllRanges(); } catch (_) { }
+          return;
+        }
+
+        const latexString = ensureLatexFromElement(el);
+        if (!latexString) return;
         const mml = ensureMathMLOnDemand(el, latexString);
         copyToClip(mml, 'mathml');
       } catch (err) {
         console.warn('[latex-copy] MathML conversion failed, fallback to LaTeX:', err);
-        // 回退：MathML 不可用时复制 LaTeX
+        const latexString = ensureLatexFromElement(el);
+        if (!latexString) return;
         copyToClip(latexString, 'latex');
       }
     }
@@ -497,15 +561,13 @@
 
     // root 本身若是公式节点，也需要绑定
     if (root && root.nodeType === 1 && root.matches?.(target.elementSelector)) {
-      const latexString = target.getLatex(root);
-      if (latexString) bindOne(root, latexString);
+      bindOne(root);
     }
 
     // 仅扫描当前子树，避免每次全量扫描文档
     if (root && typeof root.querySelectorAll === 'function') {
       root.querySelectorAll(target.elementSelector).forEach(element => {
-        const latexString = target.getLatex(element);
-        if (latexString) bindOne(element, latexString);
+        bindOne(element);
       });
     }
   }
@@ -516,9 +578,31 @@
   let lastHref = window.location.href;
   let currentTarget = getTarget(lastHref);
 
+  function isSameOrAncestor(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.nodeType === 9) return true;
+    if (a.nodeType === 1 && b.nodeType === 1 && typeof a.contains === 'function') return a.contains(b);
+    if (a.nodeType === 11 && b.nodeType === 1 && typeof a.contains === 'function') return a.contains(b);
+    return false;
+  }
+
+  function enqueuePendingRoot(node) {
+    if (!node) return;
+    if (node.nodeType !== 1 && node.nodeType !== 9 && node.nodeType !== 11) return;
+
+    const toDelete = [];
+    for (const existing of pendingRoots) {
+      if (isSameOrAncestor(existing, node)) return;
+      if (isSameOrAncestor(node, existing)) toDelete.push(existing);
+    }
+    for (const n of toDelete) pendingRoots.delete(n);
+    pendingRoots.add(node);
+  }
+
   function scheduleScan(node) {
     if (!node) return;
-    if (node.nodeType === 1 || node.nodeType === 9 || node.nodeType === 11) pendingRoots.add(node);
+    enqueuePendingRoot(node);
     if (scheduled) return;
     scheduled = true;
 
@@ -529,7 +613,7 @@
       if (window.location.href !== lastHref) {
         lastHref = window.location.href;
         currentTarget = getTarget(lastHref);
-        pendingRoots.add(document);
+        enqueuePendingRoot(document);
       }
 
       for (const n of pendingRoots) scanRoot(n);
@@ -537,38 +621,43 @@
     });
   }
 
-  function getNodeDepth(node) {
-    let depth = 0;
-    let current = node;
-    while (current && current.parentNode) {
-      depth++;
-      current = current.parentNode;
+  function getCopyTextFromNode(node, mode) {
+    if (mode === 'latex') {
+      const latex = node.dataset?.latex || currentTarget?.getLatex(node) || node.getAttribute?.('data-math') || getKaTeXLatex(node);
+      return latex ? `$${latex}$` : node.textContent;
     }
-    return depth;
+
+    const mathml = resolveMathMLFromElement(node);
+    if (mathml) return mathml;
+
+    const latex = node.dataset?.latex || currentTarget?.getLatex(node) || node.getAttribute?.('data-math') || getKaTeXLatex(node);
+    return latex || node.textContent;
   }
 
-  function getCopyTextFromNode(node, mode) {
-    const latex = node.dataset?.latex || node.getAttribute?.('data-math') || getKaTeXLatex(node);
-    if (mode === 'latex') return latex ? `$${latex}$` : node.textContent;
-    const mathml = resolveMathMLFromElement(node);
-    return mathml || latex || node.textContent;
+  function getActiveFormulaSelector() {
+    const siteSelector = currentTarget?.elementSelector;
+    if (!siteSelector) return FORMULA_SELECTOR;
+    return `${FORMULA_SELECTOR}, ${siteSelector}`;
   }
 
   function handleCopy(e) {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+
     const mode = window.__latexCopyMode || 'mathml';
     const container = document.createElement('div');
     let changed = false;
+    const selector = getActiveFormulaSelector();
     for (let i = 0; i < sel.rangeCount; i++) {
       const fragment = sel.getRangeAt(i).cloneContents();
-      const nodes = Array.from(fragment.querySelectorAll('[data-latex], span.katex'));
+      const nodes = Array.from(fragment.querySelectorAll(selector));
       if (nodes.length) {
         changed = true;
-        nodes.sort((a, b) => getNodeDepth(b) - getNodeDepth(a)).forEach(node => {
+        for (let j = nodes.length - 1; j >= 0; j--) {
+          const node = nodes[j];
           const text = getCopyTextFromNode(node, mode);
           if (node.parentNode) node.parentNode.replaceChild(document.createTextNode(text), node);
-        });
+        }
       }
       container.appendChild(fragment);
     }
