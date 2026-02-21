@@ -100,7 +100,7 @@
     const btn = document.createElement('div');
     btn.className = 'latex-copy-toggle';
     const updateText = () => {
-      btn.textContent = window.__latexCopyMode === 'mathml' ? '📋 Word 公式' : '📋 LaTeX 源码';
+      btn.textContent = window.__latexCopyMode === 'mathml' ? '📋 Word 公式' : '📋 LaTeX | Markdown';
     };
     btn.addEventListener('click', () => {
       window.__latexCopyMode = (window.__latexCopyMode === 'mathml') ? 'latex' : 'mathml';
