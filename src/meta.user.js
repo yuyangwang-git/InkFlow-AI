@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         InkFlow AI 2.0（公式复制 + 对话导出）
+// @name         chatGPT 公式复制 / 对话导出
 // @namespace    https://github.com/yuyangwang-git/InkFlow-AI
 // @version      2.0.0
 // @license      GPL-3.0-or-later
