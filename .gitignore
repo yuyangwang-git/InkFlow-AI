@@ -4,6 +4,7 @@ dist/
 playwright-report/
 test-results/
 test-pages/
+AGENTS.md
 *.log
 .DS_Store
 Thumbs.db

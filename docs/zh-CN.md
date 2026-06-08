@@ -1,163 +1,93 @@
-# 一键复制 GPT 公式 & 导出对话图片
+## 一键复制 ChatGPT 公式 & 导出对话图片
 
-安装后，你可以在 ChatGPT、Gemini 等网站中：
+这是一个 **Tampermonkey（油猴）脚本**。安装后，你可以在 ChatGPT、Gemini 等网站中：
 
-✅ 双击复制公式（支持 Word 公式 / LaTeX）  
-✅ 一键导出对话为高清 PNG 图片
+- ✅ **双击复制公式**（支持 **Word 公式 / LaTeX**）
+- ✅ **一键导出对话为高清 PNG 图片** （暂只支持 ChatGPT）
 
-无需注册，无需配置，安装即可使用。
+**无需注册，无需配置，安装即可使用。**
 
----
+### 功能亮点
 
-## 功能演示
+#### 1) Word 公式复制
 
-### Word 公式复制
+![Word 公式复制演示](https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/refs/heads/main/img/word.gif)
 
-![Word 公式复制演示](img/word.gif)
+#### 2) LaTeX 复制
 
-### LaTeX 复制
+![LaTeX 复制演示](https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/refs/heads/main/img/latex.gif)
 
-![LaTeX 复制演示](img/latex.gif)
+#### 3) 对话导出 PNG
 
-### 对话导出 PNG
+![对话导出 PNG 演示](https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/refs/heads/main/img/save.gif)
 
-![对话导出 PNG 演示](img/save.gif)
+### 安装方法
 
----
+Greasy Fork 安装地址：👉 [点击安装](https://greasyfork.org/zh-CN/scripts/566889)
 
-## 一、安装方法
+#### 安装步骤
 
-👉 Greasy Fork 安装地址：[点击安装](https://greasyfork.org/zh-CN/scripts/566889)
+1. 安装浏览器扩展 **Tampermonkey（油猴）**
+2. 打开上方安装链接
+3. 点击 **“安装此脚本”**
+4. 刷新支持的网站页面即可使用
 
-安装步骤：
-
-1. 先安装浏览器扩展「Tampermonkey（油猴）」
-2. 打开上方链接
-3. 点击“安装此脚本”
-4. 刷新支持网站即可使用
-
----
-
-## 二、支持网站
+### 支持网站
 
 目前支持以下网站：
 
-- chatgpt.com
-- gemini.google.com
-- deepseek.com
-- wikipedia.org
-- zhihu.com
-- stackexchange.com
+- `chatgpt.com`
+- `gemini.google.com`
+- `deepseek.com`
+- `wikipedia.org`
+- `zhihu.com`
+- `stackexchange.com`
 
-后续会持续扩展。
+对话图片导出暂只支持 ChatGPT，后续会持续扩展。
 
----
+### 使用方法
 
-## 三、如何使用
+#### 复制公式（Word / LaTeX）
 
-### 1️⃣ 复制公式
-
-步骤：
-
-1. 打开支持的网站（如 ChatGPT）
-2. 右下角选择复制模式：
-   - `Word 公式` → 复制为 MathML（直接粘贴到 Word 公式中）
-   - `LaTeX | Markdown` → 复制为 LaTeX 文本
+1. 打开支持的网站（例如 ChatGPT）
+2. 在页面右下角选择复制模式：
+   - `Word 公式`：复制为 **MathML**（可直接粘贴到 Word 公式中）
+   - `LaTeX | Markdown`：复制为 **LaTeX 文本**
 3. 双击页面中的公式
 4. 粘贴到 Word / Markdown 编辑器即可
 
-就是这么简单。
-
----
-
-### 2️⃣ 导出 ChatGPT 对话为图片
+#### 导出 ChatGPT 对话为图片（PNG）
 
 1. 打开 ChatGPT 对话页面
-2. 点击右下角“导出”按钮
+2. 点击右下角 **“导出”** 按钮
 3. 等待进度条完成
-4. 自动下载高清 PNG 图片
+4. 自动下载 PNG 图片
 
-适合：
+### 常见问题（FAQ）
 
-- 保存重要对话
-- 发朋友圈 / 发群
-- 存档学习笔记
+#### 为什么导出比较慢？
 
----
+对话越长、代码块越多，渲染时间通常越久。
 
-## 四、2.0 版本升级内容
+> 建议摸鱼以等待导出完成。
 
-相比旧版本，2.0 做了全面优化：
+#### 为什么 Word 粘贴效果偶尔不一致？
 
-- 高分辨率分段渲染（超清导出）
-- 导出进度百分比显示
-- 脚本结构重构，运行更流畅
+可能原因包括：
 
-长对话导出稳定性显著提升。
+- 不同网站的公式结构存在差异
+- Word 对 MathML 的兼容性表现不完全一致
 
----
-
-## 五、常见问题
-
-### 1️⃣ 为什么导出比较慢？
-
-对话越长、代码块越多，渲染时间越久。
-
-2.0 已加入：
-
-- 分段处理
-- 进度提示
-- 稳定优化
-
-长对话不会再轻易失败。
-
----
-
-### 2️⃣ 导出时浏览器有点卡？
-
-这是正常现象。
-
-因为导出图片是浏览器本地生成大图，会占用 CPU / GPU。
-
-建议：
-
-- 导出时摸鱼
-
----
-
-### 3️⃣ 为什么 Word 粘贴效果偶尔不一致？
-
-原因可能包括：
-
-- 不同网站公式结构不同
-- Word 对 MathML 的兼容性差异
-
-解决方案：
-
-- 切换为 LaTeX 模式复制
-- 或在 Word 中重新插入公式粘贴
-
----
-
-## 六、隐私说明
+### 隐私说明
 
 - 不会上传你的对话内容
-- 不会上传公式数据
-- 所有操作都在本地浏览器中完成
+- 所有操作均在本地浏览器中完成
 
-你的数据不会离开你的电脑。
+### 反馈与建议
 
----
+如遇到问题或有功能建议，请通过项目仓库的 **Issues** 页面提交反馈。
 
-## 七、反馈与建议
-
-如遇到问题或有功能建议：
-
-请通过项目仓库的 `Issues` 页面提交反馈。
-
----
-
-## License
+### License
 
 GNU GPL v3  
-详见 LICENSE 文件。
+详见 `LICENSE` 文件。

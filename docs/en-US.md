@@ -1,163 +1,93 @@
-# One-Click GPT Formula Copy & Export Chat as Image
+## One-Click Copy ChatGPT Formulas & Export Conversations as Images
 
-After installation, you can use it on ChatGPT, Gemini, and other supported websites:
+This is a **Tampermonkey userscript**. After installation, you can use it on ChatGPT, Gemini, and other supported websites to:
 
-✅ Double-click to copy formulas (supports Word Equation / LaTeX)  
-✅ One-click export chat as high-resolution PNG image  
+- ✅ **Double-click to copy formulas** (supports **Word equations / LaTeX**)
+- ✅ **Export conversations as high-resolution PNG images with one click** (currently ChatGPT only)
 
-No registration required. No configuration needed. Install and use instantly.
+**No registration required. No configuration needed. Install and use immediately.**
 
----
+### Key Features
 
-## Feature Demo
+#### 1) Copy as Word Equation
 
-### Word Equation Copy
+![Word Equation Demo](https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/refs/heads/main/img/word.gif)
 
-![Word Equation Copy Demo](https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/refs/heads/main/img/word.gif)
-
-### LaTeX Copy
+#### 2) Copy as LaTeX
 
 ![LaTeX Copy Demo](https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/refs/heads/main/img/latex.gif)
 
-### Export Chat as PNG
+#### 3) Export Conversation as PNG
 
-![Export Chat as PNG Demo](https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/refs/heads/main/img/save.gif)
+![Export PNG Demo](https://raw.githubusercontent.com/yuyangwang-git/InkFlow-AI/refs/heads/main/img/save.gif)
 
----
+### Installation
 
-## 1. Installation
+Greasy Fork installation link: 👉 [Click to Install](https://greasyfork.org/zh-CN/scripts/566889)
 
-👉 Greasy Fork Install Link: [Click to Install](https://greasyfork.org/zh-CN/scripts/566889)
-
-Installation Steps:
+#### Installation Steps
 
 1. Install the browser extension **Tampermonkey**
-2. Open the link above
-3. Click **"Install this script"**
-4. Refresh supported websites to start using
+2. Open the installation link above
+3. Click **“Install this script”**
+4. Refresh any supported website to start using it
 
----
-
-## 2. Supported Websites
+### Supported Websites
 
 Currently supported:
 
-- chatgpt.com
-- gemini.google.com
-- deepseek.com
-- wikipedia.org
-- zhihu.com
-- stackexchange.com
+- `chatgpt.com`
+- `gemini.google.com`
+- `deepseek.com`
+- `wikipedia.org`
+- `zhihu.com`
+- `stackexchange.com`
 
-More websites will be supported in future updates.
+> Conversation image export is currently supported only for ChatGPT. Support for more platforms will be added in future updates.
 
----
+### How to Use
 
-## 3. How to Use
-
-### 1️⃣ Copy Formulas
-
-Steps:
+#### Copy Formulas (Word / LaTeX)
 
 1. Open a supported website (e.g., ChatGPT)
-2. Choose copy mode in the bottom-right corner:
-   - `Word Equation` → Copy as MathML (paste directly into Word Equation)
-   - `LaTeX | Markdown` → Copy as LaTeX text
-3. Double-click the formula on the page
-4. Paste into Word or Markdown editor
+2. Select the copy mode in the bottom-right corner:
+   - `Word Equation`: Copies as **MathML** (can be directly pasted into Word equations)
+   - `LaTeX | Markdown`: Copies as **LaTeX text**
+3. Double-click any formula on the page
+4. Paste into Word or a Markdown editor
 
-That’s it — simple and fast.
-
----
-
-### 2️⃣ Export ChatGPT Conversation as Image
+#### Export ChatGPT Conversation as Image (PNG)
 
 1. Open a ChatGPT conversation page
-2. Click the **"Export"** button at the bottom-right
+2. Click the **“Export”** button in the bottom-right corner
 3. Wait for the progress bar to complete
-4. The high-resolution PNG image will download automatically
+4. The PNG image will download automatically
 
-Perfect for:
+### FAQ
 
-- Saving important conversations
-- Sharing in social media or groups
-- Archiving study notes
+#### Why is exporting sometimes slow?
 
----
+The longer the conversation and the more code blocks it contains, the longer the rendering time.
 
-## 4. Version 2.0 Improvements
+> Consider taking a short break while waiting for the export to complete.
 
-Compared to the previous version, 2.0 includes major optimizations:
+#### Why does Word formatting sometimes look inconsistent?
 
-- High-resolution segmented rendering (ultra-clear export)
-- Export progress percentage display
-- Refactored script structure for smoother performance
+Possible reasons include:
 
-Significantly improved stability for long conversations.
+- Differences in formula structures across websites
+- Inconsistent MathML compatibility in different versions of Word
 
----
+### Privacy Statement
 
-## 5. FAQ
+- Your conversation content is **never uploaded**
+- All operations are performed locally in your browser
 
-### 1️⃣ Why is exporting sometimes slow?
+### Feedback & Suggestions
 
-The longer the conversation and the more code blocks it contains, the longer rendering takes.
+If you encounter issues or have feature suggestions, please submit feedback through the project repository’s **Issues** page.
 
-Version 2.0 includes:
-
-- Segmented processing
-- Progress indicators
-- Stability improvements
-
-Long conversations are now much less likely to fail.
-
----
-
-### 2️⃣ Why does the browser lag during export?
-
-This is normal.
-
-Image exporting generates large images locally in the browser, which uses CPU / GPU resources.
-
-Suggestion:
-
-- Let it run in the background while you take a short break.
-
----
-
-### 3️⃣ Why does Word paste formatting sometimes differ?
-
-Possible reasons:
-
-- Different websites use different formula structures
-- Word has varying MathML compatibility
-
-Solutions:
-
-- Switch to LaTeX mode for copying
-- Or reinsert a formula in Word before pasting
-
----
-
-## 6. Privacy Policy
-
-- Your chat content is never uploaded
-- Formula data is never uploaded
-- All operations run locally in your browser
-
-Your data never leaves your computer.
-
----
-
-## 7. Feedback & Suggestions
-
-If you encounter issues or have feature suggestions:
-
-Please submit feedback via the project's **Issues** page.
-
----
-
-## License
+### License
 
 GNU GPL v3  
-See the LICENSE file for details.
+See the `LICENSE` file for details.
