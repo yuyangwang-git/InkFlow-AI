@@ -1,6 +1,4 @@
-export const FORMULA_SELECTOR = '[data-latex], span.katex';
-
-export function getKaTeXLatex(el) {
+function getKaTeXLatex(el) {
   const dataMath = el.getAttribute('data-math') || el.closest?.('[data-math]')?.getAttribute('data-math');
   if (dataMath) return dataMath;
   const ann = el.querySelectorAll?.('annotation[encoding="application/x-tex"], annotation') || [];
@@ -15,13 +13,23 @@ export function getKaTeXLatex(el) {
   return uniq.join('');
 }
 
+function getChatGPTLatex(el) {
+  return el?.closest?.('[data-math-source]')?.getAttribute('data-math-source') || null;
+}
+
+const chatGPTTarget = {
+  elementSelector: '[data-math-source]',
+  getLatex: getChatGPTLatex
+};
 const sharedKaTeXTarget = { elementSelector: 'span.katex', getLatex: el => getKaTeXLatex(el) };
 const targets = {
+  'chatgpt.com': chatGPTTarget,
+  'gemini.google.com': sharedKaTeXTarget,
+  'deepseek.com': sharedKaTeXTarget,
   'wikipedia.org': { elementSelector: 'span.mwe-math-element', getLatex: el => el.querySelector('math')?.getAttribute('alttext') },
   'zhihu.com': { elementSelector: 'span.ztext-math', getLatex: el => el.getAttribute('data-tex') },
   'stackexchange.com': { elementSelector: 'span.math-container', getLatex: el => el.querySelector('script')?.textContent }
 };
-['chatgpt.com', 'gemini.google.com', 'deepseek.com'].forEach(domain => { targets[domain] = sharedKaTeXTarget; });
 const targetEntries = Object.entries(targets);
 
 function getHostname(url) {

@@ -7,9 +7,7 @@ import {
   renderConversationRootToBlob
 } from './chatgpt-export.js';
 import {
-  FORMULA_SELECTOR,
   getTarget,
-  getKaTeXLatex,
   extractExistingMathML
 } from './site-targets.js';
 import { createUIController } from './ui.js';
@@ -130,11 +128,7 @@ import { createUIController } from './ui.js';
         updateExportProgress(99, '保存文件…', 100);
         downloadBlobAsPng(stitched.blob, baseName);
         updateExportProgress(100, '导出完成', 100);
-        if (stitched.scale < 0.999) {
-          ui.showToastMessage(`🖼️ 已自动拼接导出（受浏览器上限，缩放到 ${Math.round(stitched.scale * 100)}%）`);
-        } else {
-          ui.showToastMessage(`🖼️ 已自动拼接导出 PNG（${stitched.segmentCount} 段）`);
-        }
+        ui.showToastMessage(`🖼️ 已无损拼接导出 PNG（${stitched.segmentCount} 段）`);
       }
     } catch (err) {
       console.error('[latex-copy] 导出 PNG 失败:', err);
@@ -148,11 +142,10 @@ import { createUIController } from './ui.js';
 
   const { normalizeMathMLForWord, resolveMathMLFromElement, ensureMathMLOnDemand } = createMathMLTools({ extractExistingMathML });
 
-  function bindOne(element, latexString) {
+  function bindOne(element) {
     // 仅绑定元数据；交互监听采用事件委托，减少单节点监听器开销。
     if (element.dataset.latexCopyBound === '1') return;
     element.dataset.latexCopyBound = '1';
-    if (latexString) element.dataset.latex = latexString;
 
     // 轻量预热：优先缓存页面已有的 MathML，避免复制时再次深度查询 DOM。
     if (!element.dataset.mathml) {
@@ -190,7 +183,7 @@ import { createUIController } from './ui.js';
 
   function getLatexText(node) {
     if (!node) return null;
-    return ensureLatexFromElement(node) || node.getAttribute?.('data-math') || getKaTeXLatex(node) || null;
+    return ensureLatexFromElement(node);
   }
 
   // 4) 事件委托交互（一次注册，全局生效）
@@ -372,20 +365,16 @@ import { createUIController } from './ui.js';
     return latex || node.textContent;
   }
 
-  function getActiveFormulaSelector() {
-    const siteSelector = currentTarget?.elementSelector;
-    if (!siteSelector) return FORMULA_SELECTOR;
-    return `${FORMULA_SELECTOR}, ${siteSelector}`;
-  }
-
   function handleCopy(e) {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
 
+    const selector = currentTarget?.elementSelector;
+    if (!selector) return;
+
     const mode = getCopyMode();
     const container = document.createElement('div');
     let changed = false;
-    const selector = getActiveFormulaSelector();
     for (let i = 0; i < sel.rangeCount; i++) {
       const fragment = sel.getRangeAt(i).cloneContents();
       const nodes = Array.from(fragment.querySelectorAll(selector));

@@ -1,16 +1,19 @@
 const TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
 const TRANSPARENT_BG = 'rgba(0, 0, 0, 0)';
 const MAX_CAPTURE_DIMENSION = 16384;
-const MAX_SEGMENT_CSS_HEIGHT = 9000;
+const MAX_UNSEGMENTED_CAPTURE_PIXELS = 16 * 1024 * 1024;
+const MAX_SEGMENT_CSS_HEIGHT = 4200;
 const MIN_SEGMENT_CSS_HEIGHT = 900;
-const TARGET_SEGMENT_COUNT = 2;
-const MAX_TOTAL_CAPTURE_PIXELS = 72 * 1024 * 1024;
-const MAX_PIXELS_PER_SEGMENT = 28 * 1024 * 1024;
+const TARGET_SEGMENT_COUNT = 3;
+const MAX_PIXELS_PER_SEGMENT = 12 * 1024 * 1024;
 const MAX_CAPTURE_SEGMENTS = 400;
 const MAX_SEGMENT_CAPTURE_ATTEMPTS = 4;
 const MIN_SEGMENT_RETRY_HEIGHT = 400;
 const SEGMENT_RETRY_SCALE = 0.7;
+const RENDER_TIMEOUT_MS = 20000;
+const FULL_RENDER_TIMEOUT_MS = 30000;
 const FONT_READY_TIMEOUT_MS = 1500;
+const SEGMENT_PRUNE_MARGIN = 800;
 const BLOCKED_RESOURCE_PATTERNS = [
   /^https?:\/\/www\.google\.com\/s2\/favicons/i
 ];
@@ -58,6 +61,24 @@ function nextAnimationFrame() {
 
 function yieldToMainThread(delayMs = 0) {
   return new Promise(resolve => setTimeout(resolve, delayMs));
+}
+
+function makeTimeoutError(message) {
+  const err = new Error(message);
+  err.name = 'TimeoutError';
+  return err;
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  const ms = Math.max(0, Number(timeoutMs) || 0);
+  if (!ms) return promise;
+  let timer = 0;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(makeTimeoutError(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 async function waitForFrames(count = 1) {
@@ -226,17 +247,101 @@ function computeCaptureScale(width, height) {
   return Number.isFinite(scale) && scale > 0 ? scale : 1;
 }
 
-function computeAdaptiveScaleCap(width, height, widthOnlyScale) {
-  const area = Math.max(1, Math.ceil(width) * Math.ceil(height));
-  const capByArea = Math.sqrt(MAX_TOTAL_CAPTURE_PIXELS / area);
-  const safeCap = Number.isFinite(capByArea) && capByArea > 0 ? capByArea : 1;
-  return Math.max(1, Math.min(widthOnlyScale, safeCap));
-}
-
 function resolvePixelRatio(width, height, scaleCap) {
   const baseScale = computeCaptureScale(width, height);
   if (!Number.isFinite(scaleCap) || scaleCap <= 0) return baseScale;
   return Math.min(baseScale, scaleCap);
+}
+
+function estimateRenderedPixels(width, height, scale) {
+  const w = Math.max(1, Math.ceil(width));
+  const h = Math.max(1, Math.ceil(height));
+  const ratio = Math.max(0.1, Number(scale) || 1);
+  return w * h * ratio * ratio;
+}
+
+function isAncestorOfAny(node, nodes) {
+  return nodes.some(other => other !== node && other.contains(node));
+}
+
+function collectSegmentPruneEntries(root) {
+  if (!root?.querySelectorAll) return [];
+  let nodes = Array.from(root.querySelectorAll('article[data-testid^="conversation-turn"]'));
+  if (!nodes.length) nodes = Array.from(root.querySelectorAll('[data-message-author-role]'));
+  if (!nodes.length) return [];
+
+  nodes = nodes.filter(node => !isAncestorOfAny(node, nodes));
+  const rootRect = root.getBoundingClientRect();
+  return nodes.map(el => {
+    const rect = el.getBoundingClientRect();
+    const top = rect.top - rootRect.top;
+    const height = Math.max(1, Math.ceil(rect.height || el.scrollHeight || el.clientHeight || 1));
+    return {
+      el,
+      top,
+      bottom: top + height,
+      height,
+      state: null
+    };
+  }).filter(entry => Number.isFinite(entry.top) && entry.height > 1);
+}
+
+function pruneSegmentEntry(entry) {
+  if (entry.state) return;
+  const el = entry.el;
+  const fragment = document.createDocumentFragment();
+  while (el.firstChild) fragment.appendChild(el.firstChild);
+  entry.state = {
+    fragment,
+    dataAttr: el.getAttribute('data-latex-export-pruned'),
+    height: el.style.height,
+    minHeight: el.style.minHeight,
+    maxHeight: el.style.maxHeight,
+    overflow: el.style.overflow,
+    visibility: el.style.visibility
+  };
+  el.setAttribute('data-latex-export-pruned', '1');
+  el.style.height = `${entry.height}px`;
+  el.style.minHeight = `${entry.height}px`;
+  el.style.maxHeight = `${entry.height}px`;
+  el.style.overflow = 'hidden';
+  el.style.visibility = 'hidden';
+}
+
+function restoreSegmentEntry(entry) {
+  const state = entry?.state;
+  if (!state) return;
+  const el = entry.el;
+  while (el.firstChild) el.removeChild(el.firstChild);
+  el.appendChild(state.fragment);
+  if (state.dataAttr === null) el.removeAttribute('data-latex-export-pruned');
+  else el.setAttribute('data-latex-export-pruned', state.dataAttr);
+  el.style.height = state.height;
+  el.style.minHeight = state.minHeight;
+  el.style.maxHeight = state.maxHeight;
+  el.style.overflow = state.overflow;
+  el.style.visibility = state.visibility;
+  entry.state = null;
+}
+
+function restoreSegmentEntries(entries) {
+  for (const entry of entries || []) restoreSegmentEntry(entry);
+}
+
+function applySegmentPruning(entries, offset, height) {
+  if (!entries?.length) return 0;
+  const from = Math.max(0, offset - SEGMENT_PRUNE_MARGIN);
+  const to = offset + height + SEGMENT_PRUNE_MARGIN;
+  let pruned = 0;
+  for (const entry of entries) {
+    if (entry.bottom < from || entry.top > to) {
+      pruneSegmentEntry(entry);
+      pruned++;
+    } else {
+      restoreSegmentEntry(entry);
+    }
+  }
+  return pruned;
 }
 
 function ensureHtmlToImageReady() {
@@ -509,7 +614,7 @@ async function ensureFontEmbedCss(h2i, scopeNode, renderCtx) {
   return renderCtx.fontEmbedCSS || null;
 }
 
-async function renderWithHtmlToImage(clonedRoot, width, height, backgroundColor, scaleCap, renderCtx) {
+async function renderWithHtmlToImage(clonedRoot, width, height, backgroundColor, scaleCap, renderCtx, timeoutMs = RENDER_TIMEOUT_MS) {
   const h2i = await ensureHtmlToImageReady();
   const fontEmbedCSS = await ensureFontEmbedCss(h2i, clonedRoot, renderCtx);
   const baseOptions = {
@@ -531,21 +636,21 @@ async function renderWithHtmlToImage(clonedRoot, width, height, backgroundColor,
 
   const renderOnce = async options => {
     if (typeof h2i.toBlob === 'function') {
-      const blob = await h2i.toBlob(clonedRoot, options);
+      const blob = await withTimeout(h2i.toBlob(clonedRoot, options), timeoutMs, 'html-to-image toBlob timed out');
       if (blob) return blob;
     }
 
     if (typeof h2i.toPng === 'function') {
-      const dataUrl = await h2i.toPng(clonedRoot, options);
+      const dataUrl = await withTimeout(h2i.toPng(clonedRoot, options), timeoutMs, 'html-to-image toPng timed out');
       if (dataUrl) return dataURLToBlob(dataUrl);
     }
 
     if (typeof h2i.toCanvas === 'function') {
-      const canvas = await h2i.toCanvas(clonedRoot, options);
+      const canvas = await withTimeout(h2i.toCanvas(clonedRoot, options), timeoutMs, 'html-to-image toCanvas timed out');
       if (canvas && typeof canvas.toBlob === 'function') {
-        const blob = await new Promise(resolve => {
+        const blob = await withTimeout(new Promise(resolve => {
           try { canvas.toBlob(resolve, 'image/png'); } catch (_) { resolve(null); }
-        });
+        }), timeoutMs, 'canvas toBlob timed out');
         if (blob) return blob;
       }
     }
@@ -575,6 +680,7 @@ export async function renderConversationRootToBlob(sourceRoot, options = {}) {
 
   async function captureOnce({ prepareResources }) {
     let offscreenRoot = null;
+    let pruneEntries = [];
     try {
       const cloned = createOffscreenCaptureClone(sourceRoot);
       offscreenRoot = cloned.offscreenRoot;
@@ -592,15 +698,15 @@ export async function renderConversationRootToBlob(sourceRoot, options = {}) {
       const width = Math.max(1, Math.ceil(rect.width || clonedRoot.clientWidth || sourceRoot.clientWidth || 800));
       const height = Math.max(1, Math.ceil(clonedRoot.scrollHeight || rect.height || sourceRoot.scrollHeight || sourceRoot.clientHeight || 1));
       const bg = getPageBackgroundColor();
-      const fullScale = computeCaptureScale(width, height);
-      const widthOnlyScale = computeCaptureScale(width, 1);
-      const adaptiveScaleCap = computeAdaptiveScaleCap(width, height, widthOnlyScale);
-      const segmentScale = Math.min(widthOnlyScale, adaptiveScaleCap);
-      const shouldSegment = fullScale + 0.001 < segmentScale;
+      const targetScale = computeCaptureScale(width, 1);
+      const shouldSegment =
+        height * targetScale > MAX_CAPTURE_DIMENSION ||
+        estimateRenderedPixels(width, height, targetScale) > MAX_UNSEGMENTED_CAPTURE_PIXELS ||
+        height > MAX_SEGMENT_CSS_HEIGHT;
 
       if (!shouldSegment) {
         reportProgress(24, '渲染图像…');
-        const blob = await renderWithHtmlToImage(clonedRoot, width, height, bg, adaptiveScaleCap, renderCtx);
+        const blob = await renderWithHtmlToImage(clonedRoot, width, height, bg, targetScale, renderCtx, FULL_RENDER_TIMEOUT_MS);
         reportProgress(88, '渲染完成');
         return [blob];
       }
@@ -617,12 +723,13 @@ export async function renderConversationRootToBlob(sourceRoot, options = {}) {
       if (clonedRoot.parentNode) clonedRoot.parentNode.replaceChild(segmentRoot, clonedRoot);
       segmentRoot.appendChild(clonedRoot);
       clonedRoot.style.transformOrigin = 'top left';
+      pruneEntries = collectSegmentPruneEntries(clonedRoot);
 
-      const maxByDim = Math.max(1, Math.floor(MAX_CAPTURE_DIMENSION / Math.max(1, segmentScale)));
+      const maxByDim = Math.max(1, Math.floor(MAX_CAPTURE_DIMENSION / Math.max(1, targetScale)));
       const byTargetCount = Math.max(1, Math.ceil(height / TARGET_SEGMENT_COUNT));
       const byPixelBudget = Math.max(
         1,
-        Math.floor(MAX_PIXELS_PER_SEGMENT / Math.max(1, width * segmentScale * segmentScale))
+        Math.floor(MAX_PIXELS_PER_SEGMENT / Math.max(1, width * targetScale * targetScale))
       );
       const plannedHeight = Math.max(
         MIN_SEGMENT_CSS_HEIGHT,
@@ -650,14 +757,19 @@ export async function renderConversationRootToBlob(sourceRoot, options = {}) {
 
           segmentRoot.style.height = `${partHeight}px`;
           clonedRoot.style.transform = `translateY(-${offset}px)`;
+          const prunedCount = applySegmentPruning(pruneEntries, offset, partHeight);
           await waitForFrames();
 
           try {
-            partBlob = await renderWithHtmlToImage(segmentRoot, width, partHeight, bg, adaptiveScaleCap, renderCtx);
+            partBlob = await renderWithHtmlToImage(segmentRoot, width, partHeight, bg, targetScale, renderCtx);
           } catch (err) {
             const nextHeight = Math.floor(partHeight * SEGMENT_RETRY_SCALE);
             if (nextHeight < MIN_SEGMENT_RETRY_HEIGHT) throw err;
+            const suffix = prunedCount ? `，已简化 ${prunedCount} 个离屏节点` : '';
+            const reason = err?.name === 'TimeoutError' ? '超时' : '失败';
+            reportProgress(segBase, `分段 ${currentSeg} 渲染${reason}，缩小后重试${suffix}…`);
             partHeight = nextHeight;
+            await yieldToMainThread(50);
           }
         }
 
@@ -671,6 +783,7 @@ export async function renderConversationRootToBlob(sourceRoot, options = {}) {
       reportProgress(88, '分段渲染完成');
       return blobs;
     } finally {
+      try { restoreSegmentEntries(pruneEntries); } catch (_) { }
       if (offscreenRoot?.parentNode) offscreenRoot.remove();
     }
   }
